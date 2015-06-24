@@ -1,0 +1,6 @@
+[submodule "slimer"]
+	path = slimer
+	url = https://github.com/danielecook/slimer
+[submodule "eav"]
+	path = eav
+	url = https://github.com/danielecook/eav
