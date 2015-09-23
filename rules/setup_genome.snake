@@ -1,5 +1,4 @@
 
-reference = "reference/{genome_name}/{genome_name}.fa.gz".format(genome_name = config["genome_name"])
 
 rule download_genome:
     output:

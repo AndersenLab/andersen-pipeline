@@ -1,9 +1,17 @@
 from subprocess import check_output
-from utils import sample
+from utils.sample import sample_file
 
 localrules: download_picard
 configfile: "config.yaml"
+
+
+#=======#
+# Setup #
+#=======#
+
+reference = "reference/{genome_name}/{genome_name}.fa.gz".format(genome_name = config["genome_name"])
 chrom = ["I","II","III","IV","V","X"]
+sample_set = sample_file(config["sample_sheet"])
 
 
 #===============#
@@ -15,7 +23,10 @@ rule all:
     input:
         "log/setup_genome.done",
         "log/picard.done",
-        "log/dir_setup.done"
+        "log/dir_setup.done",
+        "log/bam_aligned.txt"
+
+
 
 rule setup_dirs:
     output:
@@ -47,8 +58,8 @@ rule download_picard:
 
 
 include: "rules/setup_genome.snake"
+include: "rules/align.snake"
 #include: "rules/concordance_analysis.snake"
-#include: "rules/align.snake"
 #include: "rules/call.snake"
 
 
