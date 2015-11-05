@@ -1,0 +1,58 @@
+
+
+rule download_genome:
+    output:
+        reference
+    message: 
+        "Downloading {config[genome_name]}"
+    shell:
+        """
+            mkdir reference
+            mkdir reference/{config[genome_name]}
+            cd reference/{config[genome_name]}
+            curl {config[reference_source]} > {config[genome_name]}.fa.gz
+            gunzip -f {config[genome_name]}.fa.gz
+            bgzip --stdout {config[genome_name]}.fa > {config[genome_name]}.fa.gz
+        """
+
+rule bwa_index_genome:
+    input:
+        refgenome = rules.download_genome.output
+    output:
+        expand("reference/{genome_name}/{genome_name}.fa.gz.{ext}", genome_name = config["genome_name"],
+                                                              ext = ["amb", "ann", "pac", "bwt", "sa"])
+    shell:
+        """
+            bwa index {input.refgenome}
+        """
+
+rule samtools_index:
+    input:
+        refgenome = rules.download_genome.output
+    output:
+        expand("reference/{genome_name}/{genome_name}.fa.gz.{ext}", genome_name = config["genome_name"],
+                                                              ext = ["fai", "gzi"])
+    shell:
+        """
+            samtools faidx {input.refgenome}
+        """
+
+rule setup_blast_db:
+    input:
+        refgenome = rules.download_genome.output
+    output:
+        expand("reference/{genome_name}/{genome_name}.fa.gz.{ext}", genome_name = config["genome_name"],
+                                                              ext = ["nhr", "nin","nsq"])
+    shell:
+        """
+            gunzip -c {input.refgenome} | makeblastdb -in - -dbtype=nucl -out {input.refgenome} -title {config[genome_name]}
+        """
+
+rule setup_genome_done:
+    input:
+        rules.bwa_index_genome.output,
+        rules.samtools_index.output,
+        rules.setup_blast_db.output
+    output:
+        touch("log/setup_genome.done")
+
