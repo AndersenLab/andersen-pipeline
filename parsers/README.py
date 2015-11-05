@@ -1,1 +1,0 @@
-These files are involved in parsing output from files within the resequencing pipeline.
