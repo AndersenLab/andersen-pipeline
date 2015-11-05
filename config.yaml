@@ -1,0 +1,9 @@
+fastq_path: .
+bam_path: bam
+vcf_path: vcf
+sample_file: test_sample.txt
+reference: ref.fasta
+
+alignment:
+  bwa:
+    -T: "great"
