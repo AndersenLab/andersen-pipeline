@@ -1,8 +1,18 @@
-fastq_path: .
+debug: True
+analysis_path: /lscr/andersenlab/dec211/WI
+
+# Input
+fastq_path: /lscr2/andersenlab/dec211/fastq_processed
+
+# Output
 bam_path: bam
 vcf_path: vcf
+
+# Samples
 sample_file: test_sample.txt
-reference: ref.fasta
+
+# Reference
+reference: /lscr2/andersenlab/dec211/pyPipeline/genomes/WS245/c_elegans.PRJNA13758.WS245.genomic.fa.gz
 
 alignment:
   bwa:
