@@ -2,14 +2,17 @@ r"""
 # send in job name and kwargs for slurm params:
 >>> s = Slurm("job-name", {"account": "ucgd-kp", "partition": "ucgd-kp"})
 >>> print(str(s))
-#!/bin/bash
+#!/bin/sh
 <BLANKLINE>
 #SBATCH -e logs/job-name.%J.err
 #SBATCH -o logs/job-name.%J.out
 #SBATCH -J job-name
-<BLANKLINE>
-#SBATCH --account=ucgd-kp
-#SBATCH --partition=ucgd-kp
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --partition=compute
+#SBATCH --mem=32768
+#SBATCH --mem-per-cpu=2730
 <BLANKLINE>
 set -eo pipefail -o nounset
 <BLANKLINE>
@@ -27,6 +30,7 @@ import tempfile
 import atexit
 import hashlib
 import datetime
+from itertools import cycle
 
 TMPL = """\
 #!/bin/bash
@@ -34,12 +38,18 @@ TMPL = """\
 #SBATCH -e logs/{name}.%J.err
 #SBATCH -o logs/{name}.%J.out
 #SBATCH -J {name}
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --partition=compute
+#SBATCH --mem=32768
+#SBATCH --mem-per-cpu=2730
 
 {header}
 
 set -eo pipefail -o nounset
 
-{script}"""
+"""
 
 
 def tmp(suffix=".sh"):
@@ -48,7 +58,7 @@ def tmp(suffix=".sh"):
     return t
 
 class node_cycle(object):
-    """ 
+    """
     Utility class for
     cycling through nodes
     and appropriately distributing jobs.
@@ -66,11 +76,11 @@ class job(object):
         self.datetime = datetime.datetime.now()
         self.dependencies = dependencies
 
-    def __repr__:
-        return str(self.job_id) + ":" + self.name
+    def __repr__(self):
+        return "< " + str(self.job_id) + " : " + self.name + " >"
 
 class Slurm(object):
-    def __init__(self, name, choose_node = None, dependencies = [], slurm_kwargs=None, tmpl=None, date_in_name=True, scripts_dir="scripts/"):
+    def __init__(self, name, slurm_kwargs=None, dependencies = [], tmpl=None, date_in_name=True, scripts_dir="scripts/"):
         if slurm_kwargs is None:
             slurm_kwargs = {}
         if tmpl is None:
@@ -95,8 +105,7 @@ class Slurm(object):
 
 
     def __str__(self):
-        return self.tmpl.format(name=self.name, header=self.header,
-                                script="{script}")
+        return self.tmpl.format(name=self.name, header=self.header)
 
     def _tmpfile(self):
         if self.scripts_dir is None:
@@ -106,7 +115,7 @@ class Slurm(object):
                 os.makedirs(self.scripts_dir)
             return "%s/%s.sh" % (self.scripts_dir, self.name)
 
-    def run(self, command, name_addition=None, cmd_kwargs=None, _cmd="sbatch"):
+    def run(self, command, name_addition=None, cmd_kwargs=None, _cmd="sbatch", dependencies = []):
         """
         command: a bash command that you want to run
         name_addition: if not specified, the sha1 of the command to run
@@ -117,7 +126,7 @@ class Slurm(object):
         _cmd: submit command (change to "bash" for testing).
         """
         if name_addition is None:
-            name_addition = hashlib.sha1(command.encode("utf-8")).hexdigest()
+            name_addition = hashlib.sha1(command.encode("utf-8")).hexdigest()[0:8]
 
         if self.date_in_name:
             name_addition += "-" + str(datetime.date.today())
@@ -130,14 +139,13 @@ class Slurm(object):
         self.name = self.name.strip(" -")
         self.name += ("-" + name_addition.strip(" -"))
 
-        tmpl = str(self).format(script=command)
+        tmpl = str(self)
 
         if "logs/" in tmpl and not os.path.exists("logs/"):
             os.makedirs("logs")
 
         with open(self._tmpfile(), "w") as sh:
-            cmd_kwargs["script"] = command
-            sh.write(tmpl.format(**cmd_kwargs))
+            sh.write(tmpl.format(**cmd_kwargs) + command)
 
         res = subprocess.check_output([_cmd, sh.name]).strip()
         print(res, file=sys.stderr)
@@ -145,7 +153,7 @@ class Slurm(object):
         if not res.startswith(b"Submitted batch"):
             return None
         job_id = int(res.split()[-1])
-        return job(job_id, name, dependencies)
+        return job(job_id, self.name , dependencies)
 
 if __name__ == "__main__":
     import doctest

@@ -13,6 +13,6 @@ setup(name='pipe',
       [console_scripts]
       pipe= pipe.pipe:main
       """,
-      install_requires=["cython","docopt", "cyvcf2", "biopython", "clint", "requests"],
+      install_requires=["cython","docopt", "yaml", "easydict","cyvcf2", "biopython", "clint", "requests"],
       data_files=[glob.glob("scripts/*")],
       zip_safe=False)

@@ -37,6 +37,11 @@ class sample_file:
 
         # Generate any additional necessary directories
         ensure_dir(self.config["results_path"] + "/dups")
+        ensure_dir(self.config["results_path"] + "/telseq")
+        ensure_dir(self.config["results_path"] + "/jellyfish")
+        ensure_dir(self.config["results_path"] + "/eav")
+        ensure_dir(self.config["vcf_path"] + "/sv")
+        ensure_dir(self.config["vcf_path"] + "/snps")
         ensure_dir(self.config["tmp_path"] + "/dups")
 
         dialect = csv.Sniffer().sniff(self.file_in.read(10000))
@@ -51,7 +56,7 @@ class sample_file:
             if config["debug"]:
                 record["FQ1"] = "<( zcat " + record["FQ1"] + " | head -n " + str(config["debug_reads"]*4) + " )"
                 record["FQ2"] = "<( zcat " + record["FQ2"] + " | head -n " + str(config["debug_reads"]*4) + " )"
-            record["bam_individual"] = self.config["bam_path"] + "/" + record["ID"]
+            record["bam_individual"] = self.config["bam_path"] + "/" + record["ID"] + ".bam"
             self.records.append(record)
 
             # Check that IDs are unique
@@ -63,7 +68,7 @@ class sample_file:
                     exit(puts_err(colored.red("\nIDs in sample set are not unique\n")))
 
         if config["debug"]:
-            self.records = self.records[0:10]
+            self.records = self.records[0:config["debug_samples"]]
         
 
         self.sample_groups = list(set([x["SM"] for x in self.records]))
@@ -80,7 +85,12 @@ class sample_file:
 
     def iterate_SM_sets(self):
         for SM in self.sample_groups:
-            yield {"fq_set": [x for x in self.records if x["SM"] == SM]}
+            SM_set = {}
+            SM_set["SM"] = SM
+            SM_set["fq_set"] = [x for x in self.records if x["SM"] == SM]
+            SM_set["bamlist"] = ' '.join([x["bam_individual"] for x in self.records if x["SM"] == SM])
+            SM_set["bam_merged"] = self.config["bam_path"] + "/" + SM + ".bam"
+            yield SM_set
 
     def iterate_bams(self):
         for SM in self.sample_groups:
