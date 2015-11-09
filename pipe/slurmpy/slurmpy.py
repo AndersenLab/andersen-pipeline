@@ -148,7 +148,6 @@ class Slurm(object):
             sh.write(tmpl.format(**cmd_kwargs) + command)
 
         res = subprocess.check_output([_cmd, sh.name]).strip()
-        print(res, file=sys.stderr)
         self.name = n
         if not res.startswith(b"Submitted batch"):
             return None

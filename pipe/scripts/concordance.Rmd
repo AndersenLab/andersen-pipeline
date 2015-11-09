@@ -1,0 +1,193 @@
+---
+title: "Concordance"
+author: "Daniel Cook"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: cosmo
+    toc: yes
+  pdf_document: 
+    toc: yes
+---
+
+```{r SETUP, echo=F, include=FALSE, cache=F}
+
+opts_chunk$set(warning=F,
+			   message=F,
+			   echo=F,
+			   dev=c("svg","pdf"),
+			   fig.path="Figures/")
+
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(gplots)
+library(dplyr)
+library(grid)
+library(stringr)
+
+conc <- read_tsv(pipe("grep 'CN' concordance.tsv | awk '{ gsub(\"(# |\\[[0-9]+\\])\",\"\", $0); gsub(\" \",\"_\", $0); print }' | cut -f 2-6 | sed 's/_IND//g'")) %>%
+      dplyr::mutate(Concordance = 1-(Discordance/Number_of_sites)) %>%
+      tidyr::separate(Sample_i, sep = "-", into = c("i_run", "i_lib", "i_strain"), extra = "drop", remove = F) %>%
+      tidyr::separate(Sample_j, sep = "-", into = c("j_run", "j_lib", "j_strain"), extra = "drop", remove = F) %>%
+      dplyr::filter(!grepl("lane", i_strain)) %>%
+      dplyr::filter(!grepl("lane", j_strain))
+
+```
+
+
+```{r}
+iso_set <- filter(conc, Concordance > 0.9997)
+strain_list = unique(c(conc$i_strain, conc$j_strain))
+
+stack_list <- function(x) {
+  if (is.null(names(x)) == T) {
+    names(x) <- as.character(1:length(x))
+  }
+  stack(x)
+}
+
+iso_groups <- stack_list(unique(lapply(strain_list, function(x) {
+  grouped_strains <- dplyr::filter(iso_set, (i_strain == x | j_strain == x)) %>%
+  dplyr::select(i_strain, j_strain)
+  sort(unique(unlist(grouped_strains)))
+}))) %>%
+  dplyr::rename(iso_group = ind, strain = values)
+
+seq_list <- unique(c(iso_set$Sample_i, iso_set$Sample_j))
+
+iso_group_files <- stack_list(unique(lapply(seq_list, function(x) {
+  grouped_strains <- dplyr::filter(iso_set, (Sample_i == x | Sample_j == x)) %>%
+  dplyr::select(Sample_i, Sample_j)
+  sort(unique(unlist(grouped_strains)))
+}))) %>%
+  dplyr::rename(iso_group = ind, seq_run = values) %>%
+  tidyr::separate(seq_run, sep = "-", into = c("run", "lib", "strain"), extra = "drop", remove = F) 
+
+```
+
+
+```{r,fig.width=15, fig.height=15}
+
+conc2 <- dplyr::bind_rows(dplyr::select(conc, Sample_i, Sample_j, i_strain, j_strain, Concordance),
+         dplyr::select(conc, Sample_i, Sample_j, i_strain, j_strain, Concordance) %>%
+         dplyr::rename(Sample_j = Sample_i, Sample_i = Sample_j)) %>%
+         dplyr::mutate(iso = ifelse(Concordance > 0.9997 , 1, 0)) %>%
+         dplyr::arrange(desc(Concordance))
+        
+
+isotypes <- split(iso_groups, iso_groups$iso_group)
+
+uchicago_strains <- (dplyr::filter(conc2, grepl("UChicago2",Sample_i)) %>%
+                       dplyr::select(Sample_i) %>% dplyr::distinct() %>% 
+                       tidyr::separate(Sample_i, into = c("Run", "Lib", "Strain")) %>% 
+                       dplyr::select(Strain))$Strain
+
+lapply(isotypes, function(i) { 
+  
+
+  sample_grid <- (dplyr::filter(conc2, i_strain %in% i$strain | j_strain %in% i$strain) %>%
+          dplyr::filter(iso == 1 | row_number() < 7) %>%
+          dplyr::select(Sample_i, Sample_j) %>%
+          tidyr::gather(col, sample) %>%
+          dplyr::select(sample) %>% distinct())$sample
+  mat <- as.matrix(dplyr::filter(conc2, (Sample_i %in% sample_grid & Sample_j %in% sample_grid)) %>% 
+    dplyr::select(Sample_i, Sample_j, Concordance) %>%
+    tidyr::spread(Sample_i, Concordance) %>%
+    dplyr::select(-Sample_j) %>%
+    dplyr::mutate_each(funs(as.numeric), everything()))
+  
+  # Replace NA with 1.0
+  mat[is.na(mat)] <- 1
+  row.names(mat) <- colnames(mat)
+
+  out_name <-filter(i, strain %in% uchicago_strains)[[1]]
+
+  
+# UChicago Strains Only
+
+if (sum(grepl("icago",sample_grid)) > 0) {
+png(paste0("heatmaps/", out_name,".heatmap.png"),    # create PNG for the heat map        
+width = 20*300,        # 5 x 300 pixels
+height = 20*300,            # 300 pixels per inch
+pointsize = 45,
+bg = "transparent"
+)
+
+par(oma=c(20,4,4,20))
+
+my_palette  <- colorRampPalette(c("blue","green","yellow","red"))(n = 399)
+col_breaks = c(seq(0,80,length=100), # blue
+seq(90,98,length=100),  # Green
+seq(98,99.97,length=100), # for Yellow
+seq(99.97,100,length=100)) # for Red
+
+heatmap.2(mat*100,
+  cellnote = round(mat*100,2),  # same data set for cell labels
+  notecex=3,
+  symm=TRUE,
+  dendrogram = c("row"),
+  main = paste0("[",i$strain[[1]],"] ",i), # heat map title
+  notecol="black",      # change font color of cell labels to black
+  trace="both",
+  tracecol="#00000025", 
+  key=FALSE,
+  lwid=c(1, 10),
+  lhei=c(1, 10),
+  breaks=col_breaks,# turns off trace lines inside the heat map
+  #margins=c(15,15),     # widens margins around plot
+  col=my_palette,
+  cexRow=2,
+  cexCol=2)    # enable color transition at specified limits
+  
+
+dev.off()
+}
+})
+```
+
+
+```{r depth_of_coverage, fig.width = 20, fig.height = 20}
+
+presentation <- theme(axis.text.x = element_text(size=14, face="bold", color="black"),
+                      axis.text.y = element_text(size=14, face="bold", color="black"),
+                      axis.title.x = element_text(size=18, face="bold", color="black", vjust=-1),
+                      axis.title.y = element_text(size=18, face="bold", color="black", vjust=2),
+                      strip.text.x = element_text(size=18, face="bold", color="black"),
+                      strip.text.y = element_text(size=18, face="bold", color="black"),
+                      panel.margin = unit(0.50, "lines"),
+                      plot.margin  = unit(c(1,1,1,1), "cm"),
+                      plot.title   = element_text(size=24, face="bold",vjust=2),
+                      legend.position="none")
+
+
+doc2 <- dplyr::filter(eav, (sub_attribute == "bases mapped"  & grepl("UChicago2-", entity))) %>%
+  dplyr::mutate(doc = as.numeric(value) / 102278091) %>%
+  dplyr::select(entity, doc) %>%
+  dplyr::mutate(entity = gsub("_IND", "", entity)) %>%
+  dplyr::mutate(run = 2)
+
+doc1 <- dplyr::filter(eav,  grepl("Uchicago-", entity), sub_attribute == "bases mapped") %>%
+  dplyr::mutate(doc = as.numeric(value) / 102278091) %>%
+  dplyr::select(entity, doc) %>%
+  dplyr::mutate(entity = gsub("_IND","",entity)) %>%
+  dplyr::mutate(run = 1)
+
+doc <- bind_rows(doc1, doc2) %>%
+  separate(entity, into = c("RUN", "LIB", "STRAIN"), sep = "-") %>%
+  group_by(STRAIN) %>%
+  mutate(doc_total = sum(doc)) %>%
+  distinct()
+
+ggplot(doc) +
+  geom_bar(aes(x= reorder(STRAIN, doc_total), y = doc_total), position = "dodge", stat = "identity")  +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))  +
+  geom_hline(aes(yintercept = 30), color = "red") +
+  presentation +
+  labs(y = "Depth of Coverage", x = "Strain")
+  
+ggsave("doc.png", width = 15, height = 10)
+  
+
+```

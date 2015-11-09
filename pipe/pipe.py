@@ -3,7 +3,6 @@
 Usage:
   pipe genome [--search=<search> --download=<setup>]
   pipe <config.yaml>
-  pipe concordance <config.yaml>
 
 Options:
   -h --help     Show this screen.
@@ -29,6 +28,7 @@ __version__ = "0.0.1"
 def getScriptPath():
     return os.path.dirname(pipe.__file__)
 
+
 def main():
     args = docopt(__doc__,
                   version=__version__)
@@ -42,51 +42,63 @@ def main():
         fq_set = sample_file(config["sample_file"], config)
         nodes = node_cycle(config["nodelist"])
 
-        if args["concordance"]:
-            """
-                For concordance analysis,
-                the SM column becomes the ID column.
-            """
-            for i in fq_set.records:
-                i["SM"] = i["ID"]
-            config["vcf_path"] = config["vcf_path"] + "_concordance"
-            # create temporary files so as to only output a single readgroup... (merge into bam utility...)
-
         #===========#
         # Alignment #
         #===========#
         merged_bam_list = []
+        concordance_deplist = []
+        eav_deplist = []
+        telseq_deplist = []
         for SM in fq_set.iterate_SM_sets():
-            deplist = []
-            merged_deplist = []
-            for fqs in SM["fq_set"]:
-                # Jellyfish
-                #if "command_jellyfish" in config:
-                #    run_script("jellyfish", fqs["ID"], fqs, config)
+            all_id_bams_ok = [] 
+            all_sm_bams_ok = []
+            for args in SM["fq_set"]:
+                fq_script_args = { "name" : args["ID"],
+                                   "args" : args,
+                                   "config" : config}
+                # Kmer programs
+                run_script("jellyfish", **fq_script_args)
+                run_script("kmers", **fq_script_args)
 
+                # fastq analysis
+                eav_deplist.append(run_script("fastq", **fq_script_args))
+                
                 # Alignment
-                dep = run_script("align", fqs["ID"], fqs, config)
-                deplist.append(dep)
+                all_id_bams_ok.append(run_script("align", **fq_script_args))
+
             if len(SM["fq_set"]) > 1:
-                dep = run_script("merge", SM["SM"], SM, config, dependencies = deplist)
+                SM_merged = run_script("merge", SM["SM"], SM, config, dependencies = all_id_bams_ok)
             else:
-                dep = run_script("move", SM["SM"], SM, config, dependencies = deplist)
-            merged_deplist.append(dep)
+                SM_merged = run_script("move", SM["SM"], SM, config, dependencies = all_id_bams_ok)
+            all_sm_bams_ok.append(SM_merged)
+            #==========================#
+            # Concordance Analysis (1) #
+            #==========================#
+            for fqs in SM["fq_set"]:
+                # Generate individual snpset
+                concordance_deplist.append(run_script("conc_snps_individual", fqs["ID"], fqs, config, dependencies = [SM_merged]))
 
             # Run Telseq
-            if "command_telseq" in config:
-                run_script("telseq", SM["SM"], SM, config, dependencies = [dep])
+            telseq_deplist.append(run_script("telseq", SM["SM"], SM, config, dependencies = [SM_merged]))
 
             # Run Lumpy
-            if "command_lumpy" in config:
-                run_script("lumpy", SM["SM"], SM, config, dependencies = [dep])
+            run_script("lumpy", SM["SM"], SM, config, dependencies = [SM_merged])
 
             # Run bcftools
-            if "command_bcftools" in config:
-                run_script("bcftools", SM["SM"], SM, config, dependencies = [dep])
+            run_script("bcftools", SM["SM"], SM, config, dependencies = [SM_merged])
 
             # Run Coverage
-            run_script("coverage", SM["SM"], SM, config, dependencies = [dep])
+            eav_deplist.append(run_script("coverage", SM["SM"], SM, config, dependencies = [SM_merged]))
+
+        #==========================#
+        # Concordance Analysis (2) #
+        #==========================#
+        snps_merged_dep = run_script("conc_merge_individual", "merge", fqs, config, dependencies = concordance_deplist)
+        conc_union_deps = []
+        for SM in fq_set.iterate_SM_sets():
+            for fqs in SM["fq_set"]:
+                conc_union_deps.append(run_script("conc_snps_union", fqs["ID"], fqs, config, dependencies = all_sm_bams_ok))
+        run_script("conc_calculate", fqs["ID"], fqs, config, dependencies = conc_union_deps)
 
         for bam in fq_set.iterate_bams():
             merged_bam_list.append(bam)
@@ -99,10 +111,12 @@ def main():
                                  SM["SM"],
                                  {"svtype": svtype, "merged_bam_list": ' '.join(merged_bam_list)},
                                  config,
-                                 dependencies = merged_deplist))
+                                 dependencies = all_sm_bams_ok))
             run_script("delly_merge", SM["SM"], {}, config, dependencies = delly_dep)
 
-        # Run 
+        # Run aggregation
+        run_script("aggregate_telseq", "ALL", {}, config, dependencies = telseq_deplist)
+        run_script("aggregate_eav", "ALL", {}, config, dependencies = eav_deplist)
 
     elif args['genome']:
         comm = ['python', getScriptPath() + '/' + "genome.py"] + sys.argv[1:]

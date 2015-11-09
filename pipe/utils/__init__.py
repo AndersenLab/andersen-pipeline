@@ -1,6 +1,10 @@
 import csv
 from clint.textui import puts_err, colored, indent
 import os
+from subprocess import check_output
+import tempfile
+from signal import signal, SIGPIPE, SIG_DFL
+signal(SIGPIPE,SIG_DFL) 
 
 
 def check_file(filename):
@@ -36,16 +40,21 @@ class sample_file:
         self.config["results_path"] = ensure_dir(self.config["analysis_path"] + "/" + self.config["results_path"])
 
         # Generate any additional necessary directories
+        ensure_dir(self.config["analysis_path"] + "/reciepts")
         ensure_dir(self.config["results_path"] + "/dups")
         ensure_dir(self.config["results_path"] + "/telseq")
         ensure_dir(self.config["results_path"] + "/jellyfish")
         ensure_dir(self.config["results_path"] + "/eav")
+        ensure_dir(self.config["results_path"] + "/concordance")
+        ensure_dir(self.config["results_path"] + "/kmers")
         ensure_dir(self.config["vcf_path"] + "/sv")
         ensure_dir(self.config["vcf_path"] + "/snps")
+        ensure_dir(self.config["vcf_path"] + "/snps_concordance")
         ensure_dir(self.config["tmp_path"] + "/dups")
 
         dialect = csv.Sniffer().sniff(self.file_in.read(10000))
         self.file_in.seek(0)
+        debug_temp = 0
         for record in csv.DictReader(self.file_in, dialect = dialect):
             # Setup read group
             rg = [r"{k}:{v}".format(k=x, v=record[x]) for x in ["ID","SM","PL"] if record[x] != ""]
@@ -54,9 +63,17 @@ class sample_file:
             record["FQ1"] = self.config["fastq_path"] + "/" + record["FQ1"]
             record["FQ2"] = self.config["fastq_path"] + "/" + record["FQ2"]
             if config["debug"]:
-                record["FQ1"] = "<( zcat " + record["FQ1"] + " | head -n " + str(config["debug_reads"]*4) + " )"
-                record["FQ2"] = "<( zcat " + record["FQ2"] + " | head -n " + str(config["debug_reads"]*4) + " )"
+                debug_temp += 1
+                temp1 = config["tmp_path"] + "/" + record["ID"] + "-1.fq.gz"
+                temp2 = config["tmp_path"] + "/" + record["ID"] + "-2.fq.gz"
+                if not os.path.exists(temp1):
+                    check_output("zcat " + record["FQ1"] + " | head -n " +  str(config["debug_reads"]*4) + "| gzip > " + temp1, shell = True)
+                if not os.path.exists(temp2):
+                    check_output("zcat " + record["FQ2"] + " | head -n " +  str(config["debug_reads"]*4) + "| gzip > " + temp2, shell = True)
+                record["FQ1"] = temp1
+                record["FQ2"] = temp2
             record["bam_individual"] = self.config["bam_path"] + "/" + record["ID"] + ".bam"
+            record["bam_merged"] = self.config["bam_path"] + "/" + record["SM"] + ".bam"
             self.records.append(record)
 
             # Check that IDs are unique
