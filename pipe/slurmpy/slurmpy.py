@@ -38,12 +38,6 @@ TMPL = """\
 #SBATCH -e logs/{name}.%J.err
 #SBATCH -o logs/{name}.%J.out
 #SBATCH -J {name}
-#SBATCH --nodes=1
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --partition=compute
-#SBATCH --mem=32768
-#SBATCH --mem-per-cpu=2730
 
 {header}
 
@@ -51,6 +45,10 @@ set -eo pipefail -o nounset
 
 """
 
+def set_slurm_kwarg_default(slurm_kwargs, key, value):
+    if key not in slurm_kwargs.keys():
+        slurm_kwargs[key] = str(value)
+    return slurm_kwargs
 
 def tmp(suffix=".sh"):
     t = tempfile.mktemp(suffix=suffix)
@@ -80,13 +78,22 @@ class job(object):
         return "< " + str(self.job_id) + " : " + self.name + " >"
 
 class Slurm(object):
-    def __init__(self, name, slurm_kwargs=None, dependencies = [], tmpl=None, date_in_name=True, scripts_dir="scripts/"):
+    def __init__(self, name, slurm_kwargs={}, dependencies = [], tmpl=None, date_in_name=True, scripts_dir="scripts/"):
         if slurm_kwargs is None:
             slurm_kwargs = {}
         if tmpl is None:
             tmpl = TMPL
 
         header = []
+
+        # Set slurm_kwargs defaults:
+        slurm_kwargs = set_slurm_kwarg_default(slurm_kwargs, 'nodes', '1')
+        slurm_kwargs = set_slurm_kwarg_default(slurm_kwargs, 'ntasks', '1')
+        slurm_kwargs = set_slurm_kwarg_default(slurm_kwargs, 'cpus-per-task', '8')
+        slurm_kwargs = set_slurm_kwarg_default(slurm_kwargs, 'mem', '32768')
+        slurm_kwargs = set_slurm_kwarg_default(slurm_kwargs, 'mem-per-cpu', '4096')
+        slurm_kwargs = set_slurm_kwarg_default(slurm_kwargs, 'nice', '10000')
+
         for k, v in slurm_kwargs.items():
             if len(k) > 1:
                 k = "--" + k + "="

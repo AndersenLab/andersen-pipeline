@@ -22,7 +22,7 @@ def format_params(params):
     return args + " " + flags
 
 
-def run_script(script_name, name, args, config, dependencies = "", node = ""):
+def run_script(script_name, name, args, config, slurm_kwargs = {}, dependencies = "", node = ""):
     # Check if program is being run:
     command_prog = "command_" + script_name
     if command_prog in config:
@@ -43,13 +43,10 @@ def run_script(script_name, name, args, config, dependencies = "", node = ""):
     # Convert to DotMap for attribute access 
     args = edict(args)
     # Configure options:
-    slurm_kwargs = {}
     if node:
         slurm_kwargs["node"] = node
     if dependencies:
-        print dependencies
         dependencies = [x for x in dependencies if x is not None]
-        print dependencies
         dependencies = ':'.join([str(x.job_id) for x in dependencies])
         if dependencies:
             slurm_kwargs["dependency"] = "afterok:" + dependencies

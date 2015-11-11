@@ -85,7 +85,7 @@ def main():
             run_script("lumpy", SM["SM"], SM, config, dependencies = [SM_merged])
 
             # Run bcftools
-            run_script("bcftools", SM["SM"], SM, config, dependencies = [SM_merged])
+            #run_script("bcftools", SM["SM"], SM, config, dependencies = [SM_merged])
 
             # Run Coverage
             eav_deplist.append(run_script("coverage", SM["SM"], SM, config, dependencies = [SM_merged]))
@@ -93,7 +93,7 @@ def main():
         #==========================#
         # Concordance Analysis (2) #
         #==========================#
-        snps_merged_dep = run_script("conc_merge_individual", "merge", fqs, config, dependencies = concordance_deplist)
+        snps_merged_dep = run_script("conc_merge_individual", "merge", fqs, config, slurm_kwargs = {"cpus-per-task": "1"}, dependencies = concordance_deplist)
         conc_union_deps = []
         for SM in fq_set.iterate_SM_sets():
             for fqs in SM["fq_set"]:
