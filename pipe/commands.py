@@ -27,10 +27,9 @@ def run_script(script_name, name, args, config, slurm_kwargs = {}, dependencies 
     command_prog = "command_" + script_name
     if command_prog in config:
         if not config[command_prog]:
-            return False
+            return None
     else:
-        return False
-
+        return None
     args.update(config)
     # Format Parameters
     for k,v in args.items():
