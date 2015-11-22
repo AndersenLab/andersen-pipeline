@@ -3,7 +3,7 @@
 # CHECK: {vcf_path}/snps/{SM}.individual.bcftools.vcf.gz
 # CHECK: {vcf_path}/snps/{SM}.individual.bcftools.vcf.gz.csi
 contigs=`samtools view -H {bam_merged} | grep -Po 'SN:(.*)\t' | cut -c 4-1000`
-parallel --gnu -j {cores} 'samtools mpileup -r {{}} {command_samtools.params} --fasta-ref {reference} {bam_merged} | bcftools call -v -m -O z  - > {vcf_path}/snps/{SM}.{{}}.individual.bcftools.vcf.gz' ::: ${{contigs}}
+parallel --gnu -j {cores} 'samtools mpileup -r {{}} {command_samtools.params} --fasta-ref {reference} {bam_merged} | bcftools call -O z {command_bcftools.params} - > {vcf_path}/snps/{SM}.{{}}.individual.bcftools.vcf.gz' ::: ${{contigs}}
 order=`echo $contigs | tr ' ' '\n' | awk -v vcf_path={vcf_path}/snps/{SM} '{{ print vcf_path "." $1".individual.bcftools.vcf.gz" }}'`
 
 bcftools concat ${{order}} -O v | tb geno het-polarization - | bcftools view -O z > {vcf_path}/snps/{SM}.individual.bcftools.vcf.gz

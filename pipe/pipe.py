@@ -91,8 +91,8 @@ def main():
             bcftools_deplist.append(run_script("bcftools_individual", SM["SM"], SM, config, dependencies = [SM_merged]))
 
             # Run Coverage
-            #eav_deplist.append(run_script("coverage", SM["SM"], SM, config, dependencies=[SM_merged]))
-            #run_script("talt", SM["SM"], SM, config, dependencies=[SM_merged])
+            eav_deplist.append(run_script("coverage", SM["SM"], SM, config, dependencies=[SM_merged]))
+            run_script("talt", SM["SM"], SM, config, dependencies=[SM_merged])
 
         #==========================#
         # Concordance Analysis (2) #
@@ -100,17 +100,29 @@ def main():
         bcftools_merge_dep = run_script("bcftools_merge_individual", "merge", fqs, config, dependencies = bcftools_deplist)
         snplist_dep = run_script("conc_merge_individual", "merge", fqs, config, dependencies=concordance_deplist)
         conc_union_deps = []
+        conc_filter_deps = []
         bcftools_union_deps = []
+        bcftools_filter_deps = []
         for SM in fq_set.iterate_SM_sets():
-            bcftools_union_deps.append(
-                run_script("bcftools_union", fqs["SM"], fqs, config, dependencies=all_sm_bams_ok))
+            last_dep = run_script("bcftools_union", fqs["SM"], fqs, config, slurm_kwargs={"cpus-per-task": "2"}, dependencies=all_sm_bams_ok + [bcftools_merge_dep])
+            # test
+            bcftools_union_deps.append(last_dep)
+            print "test"
+            bcftools_filter_deps.append(run_script("bcftools_filter", fqs["SM"], fqs, config, slurm_kwargs={"cpus-per-task": "1"},  dependencies=[last_dep]))
             for fqs in SM["fq_set"]:
                 conc_union_deps.append(
                     run_script("conc_snps_union", fqs["ID"], fqs, config, slurm_kwargs={"cpus-per-task": "6"}, dependencies=all_sm_bams_ok + [snplist_dep]))
-        merge_dep = run_script("conc_merge_union", 'merge_union', fqs, config, slurm_kwargs={
-                   "mem": "32768"}, dependencies=conc_union_deps)
+            for fqs in SM["fq_set"]:
+                conc_filter_deps.append(
+                    run_script("conc_filter_union", fqs["ID"], fqs, config, slurm_kwargs={"cpus-per-task": "6"}, dependencies=conc_union_deps))
+        merge_dep = run_script("conc_merge_union", 'merge', fqs, config, slurm_kwargs={
+                   "mem": "32768"}, dependencies=conc_filter_deps)
         run_script("conc_calculate", 'conc_calculate', fqs, config, slurm_kwargs={
                    "mem": "32768"}, dependencies=[merge_dep])
+
+        run_script("bcftools_merge_union", 'merge_union', fqs, config, slurm_kwargs={
+           "mem": "32768"}, dependencies= bcftools_filter_deps)
+
 
         for bam in fq_set.iterate_bams():
             merged_bam_list.append(bam)

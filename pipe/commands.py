@@ -62,6 +62,7 @@ def run_script(script_name, name, args, config, slurm_kwargs = {}, dependencies 
         with open("long_script.sh", 'a+') as f:
             f.write(scriptf)
         #print script.format(**args)
+        print slurm_kwargs
         job = Slurm(script_name + "-" + name, slurm_kwargs).run(scriptf)
         print "{script_name} - {name} ({job.job_id}) {dependencies}".format(**locals())
         for rm_file in CLEANUP:
