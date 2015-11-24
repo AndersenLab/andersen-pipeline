@@ -19,6 +19,11 @@ def ensure_dir(directory):
         os.makedirs(directory)
     return directory
 
+class run_script:
+    
+    def run(script_name):
+        pass
+
 class sample_file:
     """
         The sample file holds all the information
@@ -34,30 +39,12 @@ class sample_file:
         if config["debug"]:
             self.config["analysis_path"] = config["analysis_path"] +"_debug"
 
-        # Prepend directories
-        self.config["bam_path"] = ensure_dir(self.config["analysis_path"] + "/" + self.config["bam_path"])
-        self.config["vcf_path"] = ensure_dir(self.config["analysis_path"] + "/" + self.config["vcf_path"])
-        self.config["results_path"] = ensure_dir(self.config["analysis_path"] + "/" + self.config["results_path"])
-
-        # Generate any additional necessary directories
-        ensure_dir(self.config["analysis_path"] + "/reciepts")
-        ensure_dir(self.config["results_path"] + "/dups")
-        ensure_dir(self.config["results_path"] + "/telseq")
-        ensure_dir(self.config["results_path"] + "/jellyfish")
-        ensure_dir(self.config["results_path"] + "/eav")
-        ensure_dir(self.config["results_path"] + "/concordance")
-        ensure_dir(self.config["results_path"] + "/kmers")
-        ensure_dir(self.config["vcf_path"] + "/sv")
-        ensure_dir(self.config["vcf_path"] + "/snps")
-        ensure_dir(self.config["vcf_path"] + "/snps_concordance")
-        ensure_dir(self.config["tmp_path"] + "/dups")
-
         dialect = csv.Sniffer().sniff(self.file_in.read(10000))
         self.file_in.seek(0)
         debug_temp = 0
         for record in csv.DictReader(self.file_in, dialect = dialect):
             # Setup read group
-            rg = [r"{k}:{v}".format(k=x, v=record[x]) for x in ["ID","SM","PL"] if record[x] != ""]
+            rg = [r"{k}:{v}".format(k=x, v=record[x]) for x in ["ID","SM"] if record[x] != ""]
 
             record["readgroup"] = r"@RG\t" + r'\t'.join(rg)
             record["FQ1"] = self.config["fastq_path"] + "/" + record["FQ1"]
@@ -72,6 +59,7 @@ class sample_file:
                     check_output("zcat " + record["FQ2"] + " | head -n " +  str(config["debug_reads"]*4) + "| gzip > " + temp2, shell = True)
                 record["FQ1"] = temp1
                 record["FQ2"] = temp2
+
             record["bam_individual"] = self.config["bam_path"] + "/" + record["ID"] + ".bam"
             record["bam_merged"] = self.config["bam_path"] + "/" + record["SM"] + ".bam"
             self.records.append(record)
@@ -87,7 +75,7 @@ class sample_file:
         if config["debug"]:
             self.records = self.records[0:config["debug_samples"]]
         
-
+        self.strain_groups = list(set(x["STRAIN"] for x in self.records))
         self.sample_groups = list(set([x["SM"] for x in self.records]))
 
     def iterate_fq(self):
@@ -108,6 +96,15 @@ class sample_file:
             SM_set["bamlist"] = ' '.join([x["bam_individual"] for x in self.records if x["SM"] == SM])
             SM_set["bam_merged"] = self.config["bam_path"] + "/" + SM + ".bam"
             yield SM_set
+
+    def iterate_STRAIN_sets(self):
+        for STRAIN in self.strain_groups:
+            STRAIN_set = {}
+            STRAIN_set["STRAIN"] = STRAIN
+            STRAIN_set["fq_set"] = [x for x in self.records if x["STRAIN"] == STRAIN]
+            STRAIN_set["bamlist"] = ' '.join([x["bam_individual"] for x in self.records if x["STRAIN"] == STRAIN])
+            STRAIN_set["bam_merged"] = self.config["bam_path"] + "/" + STRAIN + ".bam"
+            yield STRAIN_set
 
     def iterate_bams(self):
         for SM in self.sample_groups:

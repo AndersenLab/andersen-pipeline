@@ -5,7 +5,7 @@
 
 ## Filter SP
 parallel --gnu -j {cores} 'bcftools view {vcf_path}/snps_concordance/union_merged.bcftools.vcf.gz {{}} | \
-bcftools filter --soft-filter 'SP_filter' --mode + --exclude "FORMAT/SP > 0" --set-GTs . | \
+bcftools filter --soft-filter "SP_filter" --mode + --exclude "FORMAT/SP > 0" --set-GTs . | \
 bcftools gtcheck -G 1 -H - | \
 awk -v chrom={{}} "/^CN/ {{ print \$0 \"\t\" chrom }} \$0 !~ /.*CN.*/ {{ print }} \$0 ~ /^# \[1\]CN/ {{ print \$0 \"\tchrom\"}}" - > {results_path}/concordance/{{}}.concordance.tsv' ::: I II III IV V X MtDNA
 

@@ -2,7 +2,8 @@
 
 Usage:
   pipe genome [--search=<search> --download=<setup>]
-  pipe <config.yaml>
+  pipe n <config.yaml>
+  pipe <config.yaml> [--dry-run]
 
 Options:
   -h --help     Show this screen.
@@ -92,7 +93,7 @@ def main():
 
             # Run Coverage
             eav_deplist.append(run_script("coverage", SM["SM"], SM, config, dependencies=[SM_merged]))
-            run_script("talt", SM["SM"], SM, config, dependencies=[SM_merged])
+            #run_script("talt", SM["SM"], SM, config, dependencies=[SM_merged])
 
         #==========================#
         # Concordance Analysis (2) #
@@ -126,6 +127,13 @@ def main():
 
         for bam in fq_set.iterate_bams():
             merged_bam_list.append(bam)
+
+
+        #==========================#
+        # Concordance Analysis (3) # - STRAINS
+        #==========================#
+        for STRAIN in fq_set.iterate_STRAIN_sets():
+            print pp(STRAIN)
 
         # Run delly
         # if "command_delly" in config:

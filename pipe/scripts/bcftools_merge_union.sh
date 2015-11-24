@@ -5,16 +5,19 @@
 # CHECK: {vcf_path}/union_merged.snpeff.vcf.gz.csi
 # CHECK: {vcf_path}/union_merged.clean.vcf.gz
 
+source /exports/people/andersenlab/dec211/git/andersen-pipeline/pipe/scripts/bash_functions.sh
+
 # Merge SNPs
-#bcftools merge -m all -O z `ls {vcf_path}/snps/*.union.filtered.bcftools.vcf.gz` | \
-#tb filter REF --min=1 - | \
-#tb filter ALT --min=1 - | \
-#bcftools view -O z - > {vcf_path}/union_merged.vcf.gz
-#bcftools index -f {vcf_path}/union_merged.vcf.gz
-#
-## Variant Prediction
-#bcftools view -O v {vcf_path}/union_merged.vcf.gz | snpEff eff WS241 | bcftools view -O z > {vcf_path}/union_merged.snpeff.vcf.gz
-#bcftools index -f {vcf_path}/union_merged.snpeff.vcf.gz
+parallel_bcftools_merge -m all `ls {vcf_path}/snps/*.union.filtered.bcftools.vcf.gz` | \
+bcftools view -O v | \
+tb filter REF --min=1 - | \
+tb filter ALT --min=1 - | \
+bcftools view -O z - > {vcf_path}/union_merged.vcf.gz
+bcftools index -f {vcf_path}/union_merged.vcf.gz
+
+# Variant Prediction
+bcftools view -O v {vcf_path}/union_merged.vcf.gz | snpEff eff WS241 | bcftools view -O z > {vcf_path}/union_merged.snpeff.vcf.gz
+bcftools index -f {vcf_path}/union_merged.snpeff.vcf.gz
 
 # Generate imputation vcf
 bcftools view -m 2 -M 2 --types snps {vcf_path}/union_merged.vcf.gz | \
