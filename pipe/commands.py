@@ -6,6 +6,7 @@ from easydict import EasyDict as edict
 from slurmpy import Slurm
 from pprint import pprint as pp
 from subprocess import check_output
+import time
 
 def file_exists(filename):
     if os.path.isfile(filename) and os.path.getsize(filename) > 0:
@@ -44,13 +45,18 @@ def run_script(script_name, name, args, config, slurm_kwargs = {}, dependencies 
     # Configure options:
     if node:
         slurm_kwargs["node"] = node
+    dependencies = [x for x in dependencies if x is not None]
+    print(dependencies)
+    slurm_kwargs["dependency"] = ""
     if dependencies:
-        dependencies = [x for x in dependencies if x is not None]
         dependencies = ':'.join([str(x.job_id) for x in dependencies])
         if dependencies:
             slurm_kwargs["dependency"] = "afterok:" + dependencies
+            print slurm_kwargs
+            time.sleep(0.5)
     else:
         dependencies = ""
+    print slurm_kwargs
 
     # Get headers:
     scriptf = script.format(**args)
