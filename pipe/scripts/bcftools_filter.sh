@@ -12,9 +12,9 @@ function filter_variants {{
     bcftools filter --mode + --soft-filter quality --include "QUAL >= ${{qual}}" |  \
     bcftools filter --mode + --soft-filter min_depth --include "INFO/DP > ${{min_depth}}" | \
     bcftools filter --mode + --soft-filter mapping_quality --include "INFO/MQ > ${{mq}}" | \
-    bcftools filter --mode + --soft-filter dv_dp --include "(FORMAT/DV)/(FORMAT/DP) >= ${{dv_dp}}" | \   
     vcffixup - | \
-    bcftools filter --mode + --soft-filter het --exclude 'AC==1' 
+    bcftools filter --mode + --soft-filter dv_dp --include "(FORMAT/DV)/(FORMAT/DP) >= ${{dv_dp}} || FORMAT/GT == '0/0'" | \
+    bcftools filter --mode + --soft-filter het --exclude 'AC==1' | \
     tb geno transfer-filter -
 }}
 
