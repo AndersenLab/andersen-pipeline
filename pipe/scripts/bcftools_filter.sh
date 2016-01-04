@@ -2,22 +2,19 @@
 # CHECK: {vcf_path}/snps/{SM}.union.filtered.bcftools.vcf.gz
 # CHECK: {vcf_path}/snps/{SM}.union.filtered.bcftools.vcf.gz.csi
 
-min_depth=10
-mq0f=5
+min_depth=8
 qual=30
-
-function max_depth {{
-    bcftools query -f '%DP\n' $1 | awk 'BEGIN {{ x = 0; }} {{ x = x + $0}} END {{ print (x/NR)*1.9 }}'
-}}
+mq=40
+dv_dp=0.5
 
 function filter_variants {{
-    max=`max_depth $1`
-    max_depth_filter="INFO/DP<${{max}}"
     bcftools view $1 | \
     bcftools filter --mode + --soft-filter quality --include "QUAL >= ${{qual}}" |  \
     bcftools filter --mode + --soft-filter min_depth --include "INFO/DP > ${{min_depth}}" | \
-    bcftools filter --mode + --soft-filter max_depth --include "${{max_depth_filter}}" | \
-    bcftools filter --mode + --soft-filter mq0f_lt_5 --include "MQ0F <= ${{mq0f}}" | \
+    bcftools filter --mode + --soft-filter mapping_quality --include "INFO/MQ > ${{mq}}" | \
+    bcftools filter --mode + --soft-filter dv_dp --include "(FORMAT/DV)/(FORMAT/DP) >= ${{dv_dp}}" | \   
+    vcffixup - | \
+    bcftools filter --mode + --soft-filter het --exclude 'AC==1' 
     tb geno transfer-filter -
 }}
 
